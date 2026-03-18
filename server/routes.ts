@@ -238,36 +238,30 @@ export async function registerRoutes(
         headers: formData.getHeaders(),
       });
 
-      const extracted = n8nRes.data; // Direct response from n8n
+      console.log("[ID Extraction] n8n response:", n8nRes.data);
 
-      const firstItem = Array.isArray(n8nRes.data) ? n8nRes.data[0] : n8nRes.data;
-
-      const allowedKeys = new Set([
-        "firstName",
-        "lastName",
-        "name",
-        "surname",
-        "personalId",
-        "birthDate",
-        "gender",
-        "expiryDate",
-      ]);
-
-      const extraKeys =
-        extracted && typeof extracted === "object" && !Array.isArray(extracted)
-          ? Object.keys(extracted as any).filter((k) => !allowedKeys.has(k))
-          : [];
-
-      // If n8n returned an error/info payload instead of expected identity data, surface it as an error.
-      if (!extracted.firstName || !extracted.lastName || !extracted.idNumber || extraKeys.length > 0) {
-        const rawText =
-          typeof extracted === "string"
-            ? extracted
-            : extracted && typeof extracted === "object"
-              ? JSON.stringify(extracted)
-              : String(extracted);
+      // Handle n8n response format: [{"success": true, "data": {...}}]
+      if (!Array.isArray(n8nRes.data) || n8nRes.data.length === 0) {
         return res.status(400).json({
-          message: rawText,
+          message: "Could not extract ID data",
+        });
+      }
+
+      const result = n8nRes.data[0];
+      
+      if (!result.success || !result.data) {
+        return res.status(400).json({
+          message: "Could not extract ID data",
+        });
+      }
+
+      const extracted = result.data;
+
+      // Validate required fields in the extracted data
+      // n8n returns: name, surname, personalId (not firstName, lastName)
+      if (!extracted.name || !extracted.surname || !extracted.personalId) {
+        return res.status(400).json({
+          message: "Could not extract ID data - missing required fields",
         });
       }
 
